@@ -9,43 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics-compat.js"></script>
-    
-    <script>
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyAikZG_s1Sb4Q0oinm26lVBN3FgYZsPC38",
-            authDomain: "gis-database-c4e83.firebaseapp.com",
-            databaseURL: "https://gis-database-c4e83-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "gis-database-c4e83",
-            storageBucket: "gis-database-c4e83.firebasestorage.app",
-            messagingSenderId: "872428685702",
-            appId: "1:872428685702:web:ba7ed2c575a4d21be88407",
-            measurementId: "G-0MZS9KTQ33"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        firebase.analytics();
-        
-        // Get a reference to the database service
-        const database = firebase.database();
-        
-        // Enable offline persistence
-        database.goOnline();
-        
-        // Add error handling for database operations
-        database.ref('.info/connected').on('value', (snap) => {
-            if (snap.val() === true) {
-                console.log('Connected to Firebase');
-            } else {
-                console.log('Disconnected from Firebase');
-            }
-        });
-    </script>
-    
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js" type="module"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -344,7 +309,68 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Firebase Configuration
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js';
+        import { getDatabase, ref, set, get, child, push, remove, update } from 'https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js';
+        
+        // Add form submit event listener
+        document.getElementById('data-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                staff: document.getElementById('staff-select').value,
+                date: document.getElementById('date-input').value,
+                agency: document.getElementById('agency-select').value,
+                documentNumber: document.getElementById('document-number').value,
+                areas: [],
+                dataTypes: []
+            };
+            
+            // Get areas data
+            const areaFields = document.querySelectorAll('.area-field');
+            areaFields.forEach(areaField => {
+                const province = areaField.querySelector('.province-select').value;
+                const districts = Array.from(areaField.querySelector('.district-select').selectedOptions)
+                    .map(option => option.value);
+                
+                if (province && districts.length > 0) {
+                    formData.areas.push({
+                        province: province,
+                        districts: districts
+                    });
+                }
+            });
+            
+            // Get data types
+            const checkedDataTypes = Array.from(document.querySelectorAll('#datatype-checkboxes input[type="checkbox"]:checked'))
+                .map(checkbox => checkbox.value);
+            
+            const otherDataTypes = document.getElementById('other-datatype').value
+                .split(',')
+                .map(type => type.trim())
+                .filter(type => type);
+            
+            formData.dataTypes = [...checkedDataTypes, ...otherDataTypes];
+            
+            await saveData(formData);
+        });
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAikZG_s1Sb4Q0oinm26lVBN3FgYZsPC38",
+            authDomain: "gis-database-c4e83.firebaseapp.com",
+            databaseURL: "https://gis-database-c4e83-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "gis-database-c4e83",
+            storageBucket: "gis-database-c4e83.firebasestorage.app",
+            messagingSenderId: "872428685702",
+            appId: "1:872428685702:web:ba7ed2c575a4d21be88407",
+            measurementId: "G-0MZS9KTQ33"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
         // Global variables
         let currentPage = 'database';
         let currentOptionType = '';
@@ -352,22 +378,101 @@
         let editingId = null;
         let searchResults = null;
 
+        // Save data function
+        async function saveData(formData) {
+            try {
+                const newRef = editingId ? 
+                    ref(database, `gis-data/${editingId}`) : 
+                    push(ref(database, 'gis-data'));
+                
+                await set(newRef, formData);
+                
+                if (currentProvinceFilter) {
+                    await showProvinceData(currentProvinceFilter);
+                }
+                
+                closeModal('add-data-modal');
+                editingId = null;
+            } catch (error) {
+                console.error("Error saving data:", error);
+                alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง');
+            }
+        }
+
         // Initialize data structure
         async function initializeData() {
-            const defaultData = {
-                'staff': [],
-                'agencies': [],
-                'provinces': [],
-                'datatypes': [],
-                'data': []
-            };
+            const dbRef = ref(database);
+            
+            try {
+                const snapshot = await get(child(dbRef, 'gis-staff'));
+                if (!snapshot.exists()) {
+                    await set(ref(database, 'gis-staff'), [
+                        { id: 1, name: 'นายสมชาย ใจดี' },
+                        { id: 2, name: 'นางสาวสมหญิง รักงาน' }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error initializing staff data:", error);
+            }
 
-            // Check if data exists in Firebase
-            const dataRef = database.ref('/');
-            const snapshot = await dataRef.once('value');
-            if (!snapshot.exists()) {
-                // Initialize with default data if database is empty
-                await dataRef.set(defaultData);
+            try {
+                const snapshot = await get(child(dbRef, 'gis-agencies'));
+                if (!snapshot.exists()) {
+                    await set(ref(database, 'gis-agencies'), [
+                        { id: 1, name: 'สำนักงานเทศบาลเมือง' },
+                        { id: 2, name: 'องค์การบริหารส่วนจังหวัด' }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error initializing agencies data:", error);
+            }
+
+            try {
+                const snapshot = await get(child(dbRef, 'gis-provinces'));
+                if (!snapshot.exists()) {
+                    await set(ref(database, 'gis-provinces'), [
+                        { 
+                            id: 1, 
+                            name: 'กรุงเทพมหานคร', 
+                            districts: [
+                                { id: 1, name: 'เขตบางรัก' },
+                                { id: 2, name: 'เขตสาทร' }
+                            ]
+                        },
+                        { 
+                            id: 2, 
+                            name: 'เชียงใหม่', 
+                            districts: [
+                                { id: 3, name: 'อำเภอเมืองเชียงใหม่' },
+                                { id: 4, name: 'อำเภอแม่ริม' }
+                            ]
+                        }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error initializing provinces data:", error);
+            }
+
+            try {
+                const snapshot = await get(child(dbRef, 'gis-datatypes'));
+                if (!snapshot.exists()) {
+                    await set(ref(database, 'gis-datatypes'), [
+                        { id: 1, name: 'แผนที่ภูมิประเทศ' },
+                        { id: 2, name: 'ข้อมูลประชากร' },
+                        { id: 3, name: 'ข้อมูลการใช้ที่ดิน' }
+                    ]);
+                }
+            } catch (error) {
+                console.error("Error initializing datatypes data:", error);
+            }
+
+            try {
+                const snapshot = await get(child(dbRef, 'gis-data'));
+                if (!snapshot.exists()) {
+                    await set(ref(database, 'gis-data'), []);
+                }
+            } catch (error) {
+                console.error("Error initializing gis data:", error);
             }
         }
 
@@ -420,82 +525,29 @@
         // Database page functions
         async function loadProvinceButtons() {
             try {
-                const provincesRef = database.ref('provinces');
-                const snapshot = await provincesRef.once('value');
+                const snapshot = await get(child(ref(database), 'gis-provinces'));
                 const provinces = snapshot.val() || [];
                 const container = document.getElementById('province-buttons');
                 
-                if (Array.isArray(provinces)) {
-                    container.innerHTML = provinces.map(province => `
-                        <button onclick="showProvinceData('${province.name}')" 
-                                class="bg-white hover:bg-primary-blue hover:text-white border-2 border-primary-blue text-primary-blue px-4 py-3 rounded-lg font-medium transition-colors shadow-md">
-                            ${province.name}
-                        </button>
-                    `).join('');
-                } else {
-                    console.error('Provinces data is not an array:', provinces);
-                    container.innerHTML = '<div class="text-red-500 p-4">ไม่สามารถโหลดข้อมูลจังหวัดได้</div>';
-                }
+                container.innerHTML = provinces.map(province => `
+                    <button onclick="showProvinceData('${province.name}')" 
+                            class="bg-white hover:bg-primary-blue hover:text-white border-2 border-primary-blue text-primary-blue px-4 py-3 rounded-lg font-medium transition-colors shadow-md">
+                        ${province.name}
+                    </button>
+                `).join('');
             } catch (error) {
-                console.error('Error loading provinces:', error);
-                container.innerHTML = '<div class="text-red-500 p-4">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
+                console.error("Error loading provinces:", error);
             }
         }
 
         async function showProvinceData(provinceName) {
+            currentProvinceFilter = provinceName;
             try {
-                currentProvinceFilter = provinceName;
-                const dataRef = database.ref('data');
-                const snapshot = await dataRef.once('value');
+                const snapshot = await get(child(ref(database), 'gis-data'));
                 const data = snapshot.val() || [];
-                
-                if (!Array.isArray(data)) {
-                    console.error('Data is not an array:', data);
-                    document.getElementById('data-table-body').innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
-                    return;
-                }
-
                 const filteredData = data.filter(item => 
-                    item.areas && item.areas.some(area => area.province === provinceName)
-                );
-                
-                // Sort by date (newest first)
-                filteredData.sort((a, b) => {
-                    if (!a.date && !b.date) return 0;
-                    if (!a.date) return 1;
-                    if (!b.date) return -1;
-                    return new Date(b.date) - new Date(a.date);
-                });
-
-                document.getElementById('table-title').textContent = `ข้อมูลจังหวัด${provinceName}`;
-                document.getElementById('data-table-container').classList.remove('hidden');
-                
-                const tbody = document.getElementById('data-table-body');
-                if (filteredData.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-center text-gray-500">ไม่พบข้อมูล</td></tr>';
-                } else {
-                    tbody.innerHTML = filteredData.map((item) => `
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
-                            <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
-                            <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
-                            <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
-                            <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
-                            <td class="px-4 py-3">
-                                <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
-                                    แก้ไข
-                                </button>
-                                <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
-                                    ลบ
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error loading province data:', error);
-                document.getElementById('data-table-body').innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
-            }
+                item.areas && item.areas.some(area => area.province === provinceName)
+            );
             
             // Sort by date (newest first, items without date go to bottom)
             filteredData.sort((a, b) => {
@@ -526,34 +578,131 @@
                     </td>
                 </tr>
             `).join('');
+        } catch (error) {
+            console.error("Error loading province data:", error);
         }
+}
+            
+            // Sort by date (newest first, items without date go to bottom)
+            filteredData.sort((a, b) => {
+                if (!a.date && !b.date) return 0;
+                if (!a.date) return 1;
+                if (!b.date) return -1;
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            document.getElementById('table-title').textContent = `ข้อมูลจังหวัด${provinceName}`;
+            document.getElementById('data-table-container').classList.remove('hidden');
+            
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = filteredData.map((item) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
+                            แก้ไข
+                        </button>
+                        <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
+                            ลบ
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        
 
-        function showSearchModal() {
-            loadSearchOptions();
+        async function showSearchModal() {
+            await loadSearchOptions();
             document.getElementById('search-modal').classList.remove('hidden');
             document.getElementById('search-modal').classList.add('flex');
         }
 
-        function loadSearchOptions() {
-            // Load agency options
-            const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
-            const agencySelect = document.getElementById('search-agency');
-            agencySelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
-                agencies.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
-            
-            // Load province options
-            const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
-            const provinceSelect = document.getElementById('search-province');
-            provinceSelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
-                provinces.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        async function loadSearchOptions() {
+            try {
+                // Load agency options
+                const agencySnapshot = await get(child(ref(database), 'gis-agencies'));
+                const agencies = agencySnapshot.val() || [];
+                const agencySelect = document.getElementById('search-agency');
+                agencySelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
+                    agencies.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+                
+                // Load province options
+                const provinceSnapshot = await get(child(ref(database), 'gis-provinces'));
+                const provinces = provinceSnapshot.val() || [];
+                const provinceSelect = document.getElementById('search-province');
+                provinceSelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
+                    provinces.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+            } catch (error) {
+                console.error("Error loading search options:", error);
+            }
         }
 
-        function performSearch() {
+        async function performSearch() {
             const searchText = document.getElementById('search-text').value.toLowerCase();
             const searchAgency = document.getElementById('search-agency').value;
             const searchProvince = document.getElementById('search-province').value;
             
-            const allData = JSON.parse(localStorage.getItem('gis-data') || '[]');
+            try {
+                const snapshot = await get(child(ref(database), 'gis-data'));
+                const allData = snapshot.val() || [];
+                
+                let filteredData = allData.filter(item => {
+                    // Text search
+                    const searchableText = [
+                        item.agency || '',
+                        item.documentNumber || '',
+                        item.dataTypes || '',
+                        item.staff || ''
+                    ].join(' ').toLowerCase();
+                    
+                    const textMatch = !searchText || searchableText.includes(searchText);
+                    
+                    // Agency filter
+                    const agencyMatch = !searchAgency || item.agency === searchAgency;
+                    
+                    // Province filter
+                    const provinceMatch = !searchProvince || (item.areas && item.areas.some(area => area.province === searchProvince));
+                    
+                    return textMatch && agencyMatch && provinceMatch;
+                });
+                
+                // Sort by date
+                filteredData.sort((a, b) => {
+                    if (!a.date && !b.date) return 0;
+                    if (!a.date) return 1;
+                    if (!b.date) return -1;
+                    return new Date(b.date) - new Date(a.date);
+                });
+                
+                // Update display
+                const tbody = document.getElementById('data-table-body');
+                tbody.innerHTML = filteredData.map((item) => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
+                        <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
+                        <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
+                        <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
+                        <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
+                        <td class="px-4 py-3">
+                            <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
+                                แก้ไข
+                            </button>
+                            <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
+                                ลบ
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                document.getElementById('data-table-container').classList.remove('hidden');
+                document.getElementById('table-title').textContent = 'ผลการค้นหา';
+                closeModal('search-modal');
+            } catch (error) {
+                console.error("Error performing search:", error);
+            }
             
             let filteredData = allData.filter(item => {
                 // Text search
@@ -740,27 +889,21 @@
             }
         }
 
-        async function loadFormOptions() {
+        function loadFormOptions() {
             // Load staff options
-            const staffRef = database.ref('staff');
-            const staffSnapshot = await staffRef.once('value');
-            const staff = staffSnapshot.val() || [];
+            const staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
             const staffSelect = document.getElementById('staff-select');
             staffSelect.innerHTML = '<option value="">เลือกเจ้าหน้าที่</option>' + 
                 staff.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
             
             // Load agency options
-            const agencyRef = database.ref('agencies');
-            const agencySnapshot = await agencyRef.once('value');
-            const agencies = agencySnapshot.val() || [];
+            const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
             const agencySelect = document.getElementById('agency-select');
             agencySelect.innerHTML = '<option value="">เลือกหน่วยงาน</option>' + 
                 agencies.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
             
             // Load datatype checkboxes
-            const datatypeRef = database.ref('datatypes');
-            const datatypeSnapshot = await datatypeRef.once('value');
-            const datatypes = datatypeSnapshot.val() || [];
+            const datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
             const container = document.getElementById('datatype-checkboxes');
             container.innerHTML = datatypes.map(dt => `
                 <label class="flex items-center">
@@ -769,13 +912,11 @@
                 </label>
             `).join('');
             
-            await loadProvinceOptionsForAreas();
+            loadProvinceOptionsForAreas();
         }
 
-        async function loadProvinceOptionsForAreas() {
-            const provinceRef = database.ref('provinces');
-            const snapshot = await provinceRef.once('value');
-            const provinces = snapshot.val() || [];
+        function loadProvinceOptionsForAreas() {
+            const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
             const provinceSelects = document.querySelectorAll('.province-select');
             
             provinceSelects.forEach(select => {
@@ -871,13 +1012,11 @@
             }
         }
 
-        async function deleteData(id) {
+        function deleteData(id) {
             if (confirm('คุณต้องการลบข้อมูลนี้หรือไม่?')) {
-                const dataRef = database.ref('data');
-                const snapshot = await dataRef.once('value');
-                let data = snapshot.val() || [];
+                let data = JSON.parse(localStorage.getItem('gis-data') || '[]');
                 data = data.filter(d => d.id !== id);
-                await dataRef.set(data);
+                localStorage.setItem('gis-data', JSON.stringify(data));
                 
                 if (currentProvinceFilter === 'ผลการค้นหา' && searchResults) {
                     // Update search results
@@ -890,7 +1029,7 @@
         }
 
         // Options page functions
-        async function showOptionsDetail(type) {
+        function showOptionsDetail(type) {
             currentOptionType = type;
             
             const titles = {
@@ -904,7 +1043,7 @@
             document.getElementById('options-page').classList.add('hidden');
             document.getElementById('options-detail-page').classList.remove('hidden');
             
-            await loadOptionsList();
+            loadOptionsList();
         }
 
         function loadOptionsList() {
@@ -1115,14 +1254,13 @@
         }
 
         // Form submission handlers
-        document.getElementById('data-form').addEventListener('submit', async function(e) {
+        document.getElementById('data-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            try {
-                const staff = document.getElementById('staff-select').value;
-                const date = document.getElementById('date-input').value;
-                const agency = document.getElementById('agency-select').value;
-                const documentNumber = document.getElementById('document-number').value;
+            const staff = document.getElementById('staff-select').value;
+            const date = document.getElementById('date-input').value;
+            const agency = document.getElementById('agency-select').value;
+            const documentNumber = document.getElementById('document-number').value;
             
             // Get areas data
             const areas = [];
@@ -1158,16 +1296,14 @@
             
             const dataTypes = selectedDataTypes.join(' + ');
             
-            const dataRef = database.ref('data');
-            const snapshot = await dataRef.once('value');
-            const currentData = snapshot.val() || [];
+            let data = JSON.parse(localStorage.getItem('gis-data') || '[]');
             
             if (editingId) {
                 // Update existing data
-                const index = currentData.findIndex(d => d.id === editingId);
+                const index = data.findIndex(d => d.id === editingId);
                 if (index !== -1) {
-                    currentData[index] = {
-                        ...currentData[index],
+                    data[index] = {
+                        ...data[index],
                         staff,
                         date,
                         agency,
@@ -1178,8 +1314,8 @@
                 }
             } else {
                 // Add new data
-                const newId = Math.max(...currentData.map(d => d.id), 0) + 1;
-                currentData.push({
+                const newId = Math.max(...data.map(d => d.id), 0) + 1;
+                data.push({
                     id: newId,
                     staff,
                     date,
@@ -1190,26 +1326,20 @@
                 });
             }
             
-            await dataRef.set(currentData);
+            localStorage.setItem('gis-data', JSON.stringify(data));
             closeModal('add-data-modal');
             
             if (currentProvinceFilter) {
                 showProvinceData(currentProvinceFilter);
             }
-        } catch (error) {
-            console.error('Error saving data:', error);
-            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message);
-        }
-    });
+        });
 
-        document.getElementById('option-form').addEventListener('submit', async function(e) {
+        document.getElementById('option-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
             if (currentOptionType === 'staff') {
                 const name = document.getElementById('staff-name').value;
-                const staffRef = database.ref('staff');
-                const snapshot = await staffRef.once('value');
-                let staff = snapshot.val() || [];
+                let staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
                 
                 if (editingId) {
                     const index = staff.findIndex(s => s.id === editingId);
@@ -1221,12 +1351,10 @@
                     staff.push({ id: newId, name });
                 }
                 
-                await staffRef.set(staff);
+                localStorage.setItem('gis-staff', JSON.stringify(staff));
             } else if (currentOptionType === 'agency') {
                 const name = document.getElementById('agency-name').value;
-                const agencyRef = database.ref('agencies');
-                const snapshot = await agencyRef.once('value');
-                let agencies = snapshot.val() || [];
+                let agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
                 
                 if (editingId) {
                     const index = agencies.findIndex(a => a.id === editingId);
@@ -1238,7 +1366,7 @@
                     agencies.push({ id: newId, name });
                 }
                 
-                await agencyRef.set(agencies);
+                localStorage.setItem('gis-agencies', JSON.stringify(agencies));
             } else if (currentOptionType === 'province') {
                 const name = document.getElementById('province-name').value;
                 const districtsList = document.getElementById('districts-list').value;
@@ -1247,9 +1375,7 @@
                     name: d.trim()
                 })).filter(d => d.name);
                 
-                const provinceRef = database.ref('provinces');
-                const snapshot = await provinceRef.once('value');
-                let provinces = snapshot.val() || [];
+                let provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
                 
                 if (editingId) {
                     const index = provinces.findIndex(p => p.id === editingId);
@@ -1262,13 +1388,11 @@
                     provinces.push({ id: newId, name, districts });
                 }
                 
-                await provinceRef.set(provinces);
+                localStorage.setItem('gis-provinces', JSON.stringify(provinces));
                 loadProvinceButtons();
             } else if (currentOptionType === 'datatype') {
                 const name = document.getElementById('datatype-name').value;
-                const datatypeRef = database.ref('datatypes');
-                const snapshot = await datatypeRef.once('value');
-                let datatypes = snapshot.val() || [];
+                let datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
                 
                 if (editingId) {
                     const index = datatypes.findIndex(dt => dt.id === editingId);
@@ -1280,7 +1404,7 @@
                     datatypes.push({ id: newId, name });
                 }
                 
-                await datatypeRef.set(datatypes);
+                localStorage.setItem('gis-datatypes', JSON.stringify(datatypes));
             }
             
             closeModal('add-option-modal');

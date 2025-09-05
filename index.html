@@ -32,6 +32,18 @@
         
         // Get a reference to the database service
         const database = firebase.database();
+        
+        // Enable offline persistence
+        database.goOnline();
+        
+        // Add error handling for database operations
+        database.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) {
+                console.log('Connected to Firebase');
+            } else {
+                console.log('Disconnected from Firebase');
+            }
+        });
     </script>
     
     <script>
@@ -407,27 +419,83 @@
 
         // Database page functions
         async function loadProvinceButtons() {
-            const provincesRef = database.ref('provinces');
-            const snapshot = await provincesRef.once('value');
-            const provinces = snapshot.val() || [];
-            const container = document.getElementById('province-buttons');
-            
-            container.innerHTML = provinces.map(province => `
-                <button onclick="showProvinceData('${province.name}')" 
-                        class="bg-white hover:bg-primary-blue hover:text-white border-2 border-primary-blue text-primary-blue px-4 py-3 rounded-lg font-medium transition-colors shadow-md">
-                    ${province.name}
-                </button>
-            `).join('');
+            try {
+                const provincesRef = database.ref('provinces');
+                const snapshot = await provincesRef.once('value');
+                const provinces = snapshot.val() || [];
+                const container = document.getElementById('province-buttons');
+                
+                if (Array.isArray(provinces)) {
+                    container.innerHTML = provinces.map(province => `
+                        <button onclick="showProvinceData('${province.name}')" 
+                                class="bg-white hover:bg-primary-blue hover:text-white border-2 border-primary-blue text-primary-blue px-4 py-3 rounded-lg font-medium transition-colors shadow-md">
+                            ${province.name}
+                        </button>
+                    `).join('');
+                } else {
+                    console.error('Provinces data is not an array:', provinces);
+                    container.innerHTML = '<div class="text-red-500 p-4">ไม่สามารถโหลดข้อมูลจังหวัดได้</div>';
+                }
+            } catch (error) {
+                console.error('Error loading provinces:', error);
+                container.innerHTML = '<div class="text-red-500 p-4">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
+            }
         }
 
         async function showProvinceData(provinceName) {
-            currentProvinceFilter = provinceName;
-            const dataRef = database.ref('data');
-            const snapshot = await dataRef.once('value');
-            const data = snapshot.val() || [];
-            const filteredData = data.filter(item => 
-                item.areas && item.areas.some(area => area.province === provinceName)
-            );
+            try {
+                currentProvinceFilter = provinceName;
+                const dataRef = database.ref('data');
+                const snapshot = await dataRef.once('value');
+                const data = snapshot.val() || [];
+                
+                if (!Array.isArray(data)) {
+                    console.error('Data is not an array:', data);
+                    document.getElementById('data-table-body').innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
+                    return;
+                }
+
+                const filteredData = data.filter(item => 
+                    item.areas && item.areas.some(area => area.province === provinceName)
+                );
+                
+                // Sort by date (newest first)
+                filteredData.sort((a, b) => {
+                    if (!a.date && !b.date) return 0;
+                    if (!a.date) return 1;
+                    if (!b.date) return -1;
+                    return new Date(b.date) - new Date(a.date);
+                });
+
+                document.getElementById('table-title').textContent = `ข้อมูลจังหวัด${provinceName}`;
+                document.getElementById('data-table-container').classList.remove('hidden');
+                
+                const tbody = document.getElementById('data-table-body');
+                if (filteredData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-center text-gray-500">ไม่พบข้อมูล</td></tr>';
+                } else {
+                    tbody.innerHTML = filteredData.map((item) => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
+                            <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
+                            <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
+                            <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
+                            <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
+                            <td class="px-4 py-3">
+                                <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
+                                    แก้ไข
+                                </button>
+                                <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
+                                    ลบ
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading province data:', error);
+                document.getElementById('data-table-body').innerHTML = '<tr><td colspan="6" class="px-4 py-3 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+            }
             
             // Sort by date (newest first, items without date go to bottom)
             filteredData.sort((a, b) => {
@@ -1050,10 +1118,11 @@
         document.getElementById('data-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const staff = document.getElementById('staff-select').value;
-            const date = document.getElementById('date-input').value;
-            const agency = document.getElementById('agency-select').value;
-            const documentNumber = document.getElementById('document-number').value;
+            try {
+                const staff = document.getElementById('staff-select').value;
+                const date = document.getElementById('date-input').value;
+                const agency = document.getElementById('agency-select').value;
+                const documentNumber = document.getElementById('document-number').value;
             
             // Get areas data
             const areas = [];
@@ -1127,7 +1196,11 @@
             if (currentProvinceFilter) {
                 showProvinceData(currentProvinceFilter);
             }
-        });
+        } catch (error) {
+            console.error('Error saving data:', error);
+            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message);
+        }
+    });
 
         document.getElementById('option-form').addEventListener('submit', async function(e) {
             e.preventDefault();

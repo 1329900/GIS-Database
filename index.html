@@ -1,0 +1,1231 @@
+
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบฐานข้อมูล GIS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics-compat.js"></script>
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAikZG_s1Sb4Q0oinm26lVBN3FgYZsPC38",
+            authDomain: "gis-database-c4e83.firebaseapp.com",
+            databaseURL: "https://gis-database-c4e83-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "gis-database-c4e83",
+            storageBucket: "gis-database-c4e83.firebasestorage.app",
+            messagingSenderId: "872428685702",
+            appId: "1:872428685702:web:ba7ed2c575a4d21be88407",
+            measurementId: "G-0MZS9KTQ33"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        firebase.analytics();
+        
+        // Get a reference to the database service
+        const database = firebase.database();
+    </script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'prompt': ['Prompt', 'sans-serif']
+                    },
+                    colors: {
+                        'primary-blue': '#1e40af',
+                        'primary-yellow': '#fbbf24',
+                        'primary-gray': '#6b7280'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-prompt bg-gray-50">
+    <!-- Header -->
+    <header class="bg-primary-blue text-white py-8 shadow-lg">
+        <div class="container mx-auto px-4">
+            <h1 class="text-center">
+                <div class="text-3xl font-bold mb-2">ระบบฐานข้อมูลรูปสารสนเทศภูมิศาสตร์ (GIS)</div>
+                <div class="text-lg">ส่วนผังเมืองรวมที่ 1 สำนักผังเมืองรวม กรมโยธาธิการและผังเมือง</div>
+            </h1>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md">
+        <div class="container mx-auto px-4">
+            <div class="flex space-x-8">
+                <button onclick="showPage('database')" class="nav-btn py-4 px-6 text-primary-blue border-b-2 border-primary-blue font-medium">
+                    หน้าฐานข้อมูล
+                </button>
+                <button onclick="showPage('options')" class="nav-btn py-4 px-6 text-primary-gray hover:text-primary-blue font-medium">
+                    หน้าชุดตัวเลือก
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Database Page -->
+    <div id="database-page" class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-primary-blue">ฐานข้อมูล</h2>
+            <div class="flex space-x-3">
+                <button onclick="showSearchModal()" class="bg-primary-blue hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-md">
+                    🔍 ค้นหาข้อมูล
+                </button>
+                <button onclick="showAddDataModal()" class="bg-primary-yellow hover:bg-yellow-500 text-white px-4 py-2 rounded-lg font-medium shadow-md">
+                    + บันทึกข้อมูล
+                </button>
+            </div>
+        </div>
+
+        <!-- Province Buttons -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8" id="province-buttons">
+            <!-- Province buttons will be generated here -->
+        </div>
+
+        <!-- Data Table -->
+        <div id="data-table-container" class="hidden">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="bg-primary-blue text-white px-6 py-4">
+                    <h3 class="text-lg font-semibold" id="table-title">ข้อมูลจังหวัด</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-fixed">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left w-32">วันที่ได้รับข้อมูล</th>
+                                <th class="px-4 py-3 text-left w-48">หน่วยงาน</th>
+                                <th class="px-4 py-3 text-left w-40">เลขที่หนังสือ</th>
+                                <th class="px-4 py-3 text-left w-64">พื้นที่</th>
+                                <th class="px-4 py-3 text-left w-56">ข้อมูลที่ได้รับ</th>
+                                <th class="px-4 py-3 text-left w-32">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body">
+                            <!-- Data rows will be generated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Options Page -->
+    <div id="options-page" class="container mx-auto px-4 py-8 hidden">
+        <h2 class="text-2xl font-bold text-primary-blue mb-6">ชุดตัวเลือก</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-primary-blue mb-4">เจ้าหน้าที่</h3>
+                <button onclick="showOptionsDetail('staff')" class="w-full bg-primary-blue hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                    จัดการเจ้าหน้าที่
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-primary-blue mb-4">หน่วยงาน</h3>
+                <button onclick="showOptionsDetail('agency')" class="w-full bg-primary-blue hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                    จัดการหน่วยงาน
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-primary-blue mb-4">จังหวัด</h3>
+                <button onclick="showOptionsDetail('province')" class="w-full bg-primary-blue hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                    จัดการจังหวัด
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold text-primary-blue mb-4">ข้อมูลที่ได้รับ</h3>
+                <button onclick="showOptionsDetail('datatype')" class="w-full bg-primary-blue hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                    จัดการข้อมูลที่ได้รับ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Options Detail Page -->
+    <div id="options-detail-page" class="container mx-auto px-4 py-8 hidden">
+        <div class="flex items-center mb-6">
+            <button onclick="showPage('options')" class="bg-primary-gray hover:bg-gray-600 text-white px-4 py-2 rounded-lg mr-4">
+                ← กลับ
+            </button>
+            <h2 class="text-2xl font-bold text-primary-blue" id="detail-title">จัดการข้อมูล</h2>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md">
+            <div class="flex justify-between items-center p-6 border-b">
+                <h3 class="text-lg font-semibold">รายการข้อมูล</h3>
+                <button onclick="showAddOptionModal()" class="bg-primary-yellow hover:bg-yellow-500 text-white px-4 py-2 rounded-lg">
+                    + เพิ่มข้อมูล
+                </button>
+            </div>
+            <div id="options-list" class="p-6">
+                <!-- Options list will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Data Modal -->
+    <div id="add-data-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary-blue">บันทึกข้อมูล</h3>
+                <button onclick="closeModal('add-data-modal')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            
+            <form id="data-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">เจ้าหน้าที่</label>
+                    <select id="staff-select" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        <option value="">เลือกเจ้าหน้าที่</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">วันที่</label>
+                    <input type="date" id="date-input" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">หน่วยงาน</label>
+                    <select id="agency-select" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        <option value="">เลือกหน่วยงาน</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">เลขที่หนังสือ</label>
+                    <input type="text" id="document-number" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                </div>
+                
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-gray-700">พื้นที่</label>
+                        <button type="button" onclick="addAreaField()" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm">
+                            + เพิ่มพื้นที่
+                        </button>
+                    </div>
+                    <div id="areas-container">
+                        <div class="area-field border border-gray-200 rounded-lg p-4 mb-3">
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <select class="province-select border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                                    <option value="">เลือกจังหวัด</option>
+                                </select>
+                                <button type="button" onclick="removeAreaField(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm">
+                                    ลบพื้นที่
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (สามารถเลือกได้หลายตัวเลือก)</label>
+                                <select class="district-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" multiple size="4">
+                                    <option value="">เลือกอำเภอ</option>
+                                </select>
+                                <div class="text-xs text-gray-500 mt-1">กด Ctrl (Windows) หรือ Cmd (Mac) ค้างไว้เพื่อเลือกหลายตัวเลือก</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ข้อมูลที่ได้รับ</label>
+                    <div id="datatype-checkboxes" class="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                        <!-- Checkboxes will be generated here -->
+                    </div>
+                    <div class="mt-2">
+                        <input type="text" id="other-datatype" placeholder="อื่นๆ (คั่นด้วยเครื่องหมาย ,)" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-4 pt-4">
+                    <button type="button" onclick="closeModal('add-data-modal')" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="bg-primary-blue hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                        บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary-blue">ค้นหาข้อมูล</h3>
+                <button onclick="closeModal('search-modal')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Text Search -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ค้นหาจากข้อความ</label>
+                    <input type="text" id="search-text" placeholder="ค้นหาจากหน่วยงาน, เลขที่หนังสือ, หรือข้อมูลที่ได้รับ..." class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                </div>
+                
+                <!-- Filter by Agency -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">หน่วยงาน</label>
+                    <select id="search-agency" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+                
+                <!-- Filter by Province -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">จังหวัด</label>
+                    <select id="search-province" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+                
+
+                
+                <div class="flex justify-end space-x-4 pt-4">
+                    <button type="button" onclick="clearSearch()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg">
+                        ล้างการค้นหา
+                    </button>
+                    <button type="button" onclick="performSearch()" class="bg-primary-blue hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                        ค้นหา
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Option Modal -->
+    <div id="add-option-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-primary-blue" id="option-modal-title">เพิ่มข้อมูล</h3>
+                <button onclick="closeModal('add-option-modal')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            
+            <form id="option-form" class="space-y-4">
+                <div id="option-form-fields">
+                    <!-- Form fields will be generated here -->
+                </div>
+                
+                <div class="flex justify-end space-x-4 pt-4">
+                    <button type="button" onclick="closeModal('add-option-modal')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="bg-primary-blue hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                        บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentPage = 'database';
+        let currentOptionType = '';
+        let currentProvinceFilter = '';
+        let editingId = null;
+        let searchResults = null;
+
+        // Initialize data structure
+        function initializeData() {
+            if (!localStorage.getItem('gis-staff')) {
+                localStorage.setItem('gis-staff', JSON.stringify([
+                    { id: 1, name: 'นายสมชาย ใจดี' },
+                    { id: 2, name: 'นางสาวสมหญิง รักงาน' }
+                ]));
+            }
+            
+            if (!localStorage.getItem('gis-agencies')) {
+                localStorage.setItem('gis-agencies', JSON.stringify([
+                    { id: 1, name: 'สำนักงานเทศบาลเมือง' },
+                    { id: 2, name: 'องค์การบริหารส่วนจังหวัด' }
+                ]));
+            }
+            
+            if (!localStorage.getItem('gis-provinces')) {
+                localStorage.setItem('gis-provinces', JSON.stringify([
+                    { 
+                        id: 1, 
+                        name: 'กรุงเทพมหานคร', 
+                        districts: [
+                            { id: 1, name: 'เขตบางรัก' },
+                            { id: 2, name: 'เขตสาทร' }
+                        ]
+                    },
+                    { 
+                        id: 2, 
+                        name: 'เชียงใหม่', 
+                        districts: [
+                            { id: 3, name: 'อำเภอเมืองเชียงใหม่' },
+                            { id: 4, name: 'อำเภอแม่ริม' }
+                        ]
+                    }
+                ]));
+            }
+            
+            if (!localStorage.getItem('gis-datatypes')) {
+                localStorage.setItem('gis-datatypes', JSON.stringify([
+                    { id: 1, name: 'แผนที่ภูมิประเทศ' },
+                    { id: 2, name: 'ข้อมูลประชากร' },
+                    { id: 3, name: 'ข้อมูลการใช้ที่ดิน' }
+                ]));
+            }
+            
+            if (!localStorage.getItem('gis-data')) {
+                localStorage.setItem('gis-data', JSON.stringify([]));
+            }
+        }
+
+        // Utility functions
+        function showPage(page) {
+            document.getElementById('database-page').classList.add('hidden');
+            document.getElementById('options-page').classList.add('hidden');
+            document.getElementById('options-detail-page').classList.add('hidden');
+            
+            document.getElementById(page + '-page').classList.remove('hidden');
+            
+            // Update navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('border-primary-blue', 'text-primary-blue');
+                btn.classList.add('text-primary-gray');
+            });
+            
+            if (page === 'database') {
+                document.querySelector('[onclick="showPage(\'database\')"]').classList.add('border-primary-blue', 'text-primary-blue');
+                document.querySelector('[onclick="showPage(\'database\')"]').classList.remove('text-primary-gray');
+                loadProvinceButtons();
+            } else if (page === 'options') {
+                document.querySelector('[onclick="showPage(\'options\')"]').classList.add('border-primary-blue', 'text-primary-blue');
+                document.querySelector('[onclick="showPage(\'options\')"]').classList.remove('text-primary-gray');
+            }
+            
+            currentPage = page;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            document.getElementById(modalId).classList.remove('flex');
+            editingId = null;
+        }
+
+        function convertToThaiDate(dateString) {
+            const date = new Date(dateString);
+            const thaiYear = date.getFullYear() + 543;
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${day}/${month}/${thaiYear}`;
+        }
+
+        function convertFromThaiDate(thaiDateString) {
+            const [day, month, thaiYear] = thaiDateString.split('/');
+            const year = parseInt(thaiYear) - 543;
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
+        // Database page functions
+        function loadProvinceButtons() {
+            const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+            const container = document.getElementById('province-buttons');
+            
+            container.innerHTML = provinces.map(province => `
+                <button onclick="showProvinceData('${province.name}')" 
+                        class="bg-white hover:bg-primary-blue hover:text-white border-2 border-primary-blue text-primary-blue px-4 py-3 rounded-lg font-medium transition-colors shadow-md">
+                    ${province.name}
+                </button>
+            `).join('');
+        }
+
+        function showProvinceData(provinceName) {
+            currentProvinceFilter = provinceName;
+            const data = JSON.parse(localStorage.getItem('gis-data') || '[]');
+            const filteredData = data.filter(item => 
+                item.areas && item.areas.some(area => area.province === provinceName)
+            );
+            
+            // Sort by date (newest first, items without date go to bottom)
+            filteredData.sort((a, b) => {
+                if (!a.date && !b.date) return 0;
+                if (!a.date) return 1;
+                if (!b.date) return -1;
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            document.getElementById('table-title').textContent = `ข้อมูลจังหวัด${provinceName}`;
+            document.getElementById('data-table-container').classList.remove('hidden');
+            
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = filteredData.map((item) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
+                            แก้ไข
+                        </button>
+                        <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
+                            ลบ
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showSearchModal() {
+            loadSearchOptions();
+            document.getElementById('search-modal').classList.remove('hidden');
+            document.getElementById('search-modal').classList.add('flex');
+        }
+
+        function loadSearchOptions() {
+            // Load agency options
+            const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+            const agencySelect = document.getElementById('search-agency');
+            agencySelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
+                agencies.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+            
+            // Load province options
+            const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+            const provinceSelect = document.getElementById('search-province');
+            provinceSelect.innerHTML = '<option value="">ทั้งหมด</option>' + 
+                provinces.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        }
+
+        function performSearch() {
+            const searchText = document.getElementById('search-text').value.toLowerCase();
+            const searchAgency = document.getElementById('search-agency').value;
+            const searchProvince = document.getElementById('search-province').value;
+            
+            const allData = JSON.parse(localStorage.getItem('gis-data') || '[]');
+            
+            let filteredData = allData.filter(item => {
+                // Text search
+                if (searchText) {
+                    const searchableText = [
+                        item.agency || '',
+                        item.documentNumber || '',
+                        item.dataTypes || '',
+                        item.staff || ''
+                    ].join(' ').toLowerCase();
+                    
+                    if (!searchableText.includes(searchText)) {
+                        return false;
+                    }
+                }
+                
+                // Agency filter
+                if (searchAgency && item.agency !== searchAgency) {
+                    return false;
+                }
+                
+                // Province filter
+                if (searchProvince) {
+                    const hasProvince = item.areas && item.areas.some(area => area.province === searchProvince);
+                    if (!hasProvince) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            // Sort by date (newest first, items without date go to bottom)
+            filteredData.sort((a, b) => {
+                if (!a.date && !b.date) return 0;
+                if (!a.date) return 1;
+                if (!b.date) return -1;
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            searchResults = filteredData;
+            displaySearchResults();
+            closeModal('search-modal');
+        }
+
+        function displaySearchResults() {
+            currentProvinceFilter = 'ผลการค้นหา';
+            document.getElementById('table-title').textContent = `ผลการค้นหา (${searchResults.length} รายการ)`;
+            document.getElementById('data-table-container').classList.remove('hidden');
+            
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = searchResults.map((item) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3 break-words">${item.date ? convertToThaiDate(item.date) : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.agency || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.documentNumber || '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.areas && item.areas.length > 0 ? item.areas.map(area => `${area.province} - ${area.districts.join(', ')}`).join('<br>') : '-'}</td>
+                    <td class="px-4 py-3 break-words">${item.dataTypes || '-'}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="editData(${item.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2 mb-1 block w-full">
+                            แก้ไข
+                        </button>
+                        <button onclick="deleteData(${item.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm block w-full">
+                            ลบ
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function clearSearch() {
+            document.getElementById('search-text').value = '';
+            document.getElementById('search-agency').value = '';
+            document.getElementById('search-province').value = '';
+            
+            searchResults = null;
+            document.getElementById('data-table-container').classList.add('hidden');
+            closeModal('search-modal');
+        }
+
+        function showAddDataModal() {
+            loadFormOptions();
+            document.getElementById('add-data-modal').classList.remove('hidden');
+            document.getElementById('add-data-modal').classList.add('flex');
+            
+            // Reset form
+            document.getElementById('data-form').reset();
+            resetAreasContainer();
+            editingId = null;
+        }
+
+        function resetAreasContainer() {
+            const container = document.getElementById('areas-container');
+            container.innerHTML = `
+                <div class="area-field border border-gray-200 rounded-lg p-4 mb-3">
+                    <div class="grid grid-cols-2 gap-4 mb-3">
+                        <select class="province-select border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                            <option value="">เลือกจังหวัด</option>
+                        </select>
+                        <button type="button" onclick="removeAreaField(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm">
+                            ลบพื้นที่
+                        </button>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (สามารถเลือกได้หลายตัวเลือก)</label>
+                        <select class="district-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" multiple size="4">
+                            <option value="">เลือกอำเภอ</option>
+                        </select>
+                        <div class="text-xs text-gray-500 mt-1">กด Ctrl (Windows) หรือ Cmd (Mac) ค้างไว้เพื่อเลือกหลายตัวเลือก</div>
+                    </div>
+                </div>
+            `;
+            loadProvinceOptionsForAreas();
+        }
+
+        function addAreaField() {
+            const container = document.getElementById('areas-container');
+            
+            // เก็บค่าที่เลือกไว้ในฟิลด์เดิมก่อนเพิ่มฟิลด์ใหม่
+            const existingFields = container.querySelectorAll('.area-field');
+            const savedValues = [];
+            
+            existingFields.forEach(field => {
+                const provinceSelect = field.querySelector('.province-select');
+                const districtSelect = field.querySelector('.district-select');
+                const selectedDistricts = Array.from(districtSelect.selectedOptions).map(option => option.value);
+                
+                savedValues.push({
+                    province: provinceSelect.value,
+                    districts: selectedDistricts
+                });
+            });
+            
+            const newAreaField = document.createElement('div');
+            newAreaField.className = 'area-field border border-gray-200 rounded-lg p-4 mb-3';
+            newAreaField.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-3">
+                    <select class="province-select border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        <option value="">เลือกจังหวัด</option>
+                    </select>
+                    <button type="button" onclick="removeAreaField(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm">
+                        ลบพื้นที่
+                    </button>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (สามารถเลือกได้หลายตัวเลือก)</label>
+                    <select class="district-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" multiple size="4">
+                        <option value="">เลือกอำเภอ</option>
+                    </select>
+                    <div class="text-xs text-gray-500 mt-1">กด Ctrl (Windows) หรือ Cmd (Mac) ค้างไว้เพื่อเลือกหลายตัวเลือก</div>
+                </div>
+            `;
+            container.appendChild(newAreaField);
+            loadProvinceOptionsForAreas();
+            
+            // คืนค่าที่เลือกไว้กลับมา
+            setTimeout(() => {
+                const allFields = container.querySelectorAll('.area-field');
+                savedValues.forEach((saved, index) => {
+                    if (allFields[index] && saved.province) {
+                        const provinceSelect = allFields[index].querySelector('.province-select');
+                        const districtSelect = allFields[index].querySelector('.district-select');
+                        
+                        provinceSelect.value = saved.province;
+                        provinceSelect.dispatchEvent(new Event('change'));
+                        
+                        setTimeout(() => {
+                            saved.districts.forEach(district => {
+                                const option = districtSelect.querySelector(`option[value="${district}"]`);
+                                if (option) option.selected = true;
+                            });
+                        }, 100);
+                    }
+                });
+            }, 100);
+        }
+
+        function removeAreaField(button) {
+            const areaFields = document.querySelectorAll('.area-field');
+            if (areaFields.length > 1) {
+                button.closest('.area-field').remove();
+            } else {
+                alert('ต้องมีอย่างน้อย 1 พื้นที่');
+            }
+        }
+
+        function loadFormOptions() {
+            // Load staff options
+            const staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
+            const staffSelect = document.getElementById('staff-select');
+            staffSelect.innerHTML = '<option value="">เลือกเจ้าหน้าที่</option>' + 
+                staff.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+            
+            // Load agency options
+            const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+            const agencySelect = document.getElementById('agency-select');
+            agencySelect.innerHTML = '<option value="">เลือกหน่วยงาน</option>' + 
+                agencies.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+            
+            // Load datatype checkboxes
+            const datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
+            const container = document.getElementById('datatype-checkboxes');
+            container.innerHTML = datatypes.map(dt => `
+                <label class="flex items-center">
+                    <input type="checkbox" value="${dt.name}" class="mr-2">
+                    <span>${dt.name}</span>
+                </label>
+            `).join('');
+            
+            loadProvinceOptionsForAreas();
+        }
+
+        function loadProvinceOptionsForAreas() {
+            const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+            const provinceSelects = document.querySelectorAll('.province-select');
+            
+            provinceSelects.forEach(select => {
+                select.innerHTML = '<option value="">เลือกจังหวัด</option>' + 
+                    provinces.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+                
+                select.onchange = function() {
+                    const selectedProvince = provinces.find(p => p.name === this.value);
+                    const districtSelect = this.closest('.area-field').querySelector('.district-select');
+                    
+                    if (selectedProvince) {
+                        districtSelect.innerHTML = '<option value="ทั้งจังหวัด">ทั้งจังหวัด</option>' + 
+                            selectedProvince.districts.map(d => `<option value="${d.name}">${d.name}</option>`).join('');
+                    } else {
+                        districtSelect.innerHTML = '<option value="">เลือกอำเภอ</option>';
+                    }
+                };
+            });
+        }
+
+        function editData(id) {
+            const data = JSON.parse(localStorage.getItem('gis-data') || '[]');
+            const item = data.find(d => d.id === id);
+            
+            if (item) {
+                editingId = id;
+                loadFormOptions();
+                
+                // Fill form with existing data
+                document.getElementById('staff-select').value = item.staff;
+                document.getElementById('date-input').value = item.date;
+                document.getElementById('agency-select').value = item.agency;
+                document.getElementById('document-number').value = item.documentNumber;
+                
+                // Load areas
+                const container = document.getElementById('areas-container');
+                container.innerHTML = '';
+                
+                item.areas.forEach((area, index) => {
+                    const areaField = document.createElement('div');
+                    areaField.className = 'area-field border border-gray-200 rounded-lg p-4 mb-3';
+                    areaField.innerHTML = `
+                        <div class="grid grid-cols-2 gap-4 mb-3">
+                            <select class="province-select border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                                <option value="">เลือกจังหวัด</option>
+                            </select>
+                            <button type="button" onclick="removeAreaField(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm">
+                                ลบพื้นที่
+                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (สามารถเลือกได้หลายตัวเลือก)</label>
+                            <select class="district-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" multiple size="4">
+                                <option value="">เลือกอำเภอ</option>
+                            </select>
+                            <div class="text-xs text-gray-500 mt-1">กด Ctrl (Windows) หรือ Cmd (Mac) ค้างไว้เพื่อเลือกหลายตัวเลือก</div>
+                        </div>
+                    `;
+                    container.appendChild(areaField);
+                });
+                
+                loadProvinceOptionsForAreas();
+                
+                // Set values after loading options
+                setTimeout(() => {
+                    const areaFields = document.querySelectorAll('.area-field');
+                    item.areas.forEach((area, index) => {
+                        if (areaFields[index]) {
+                            const provinceSelect = areaFields[index].querySelector('.province-select');
+                            const districtSelect = areaFields[index].querySelector('.district-select');
+                            
+                            provinceSelect.value = area.province;
+                            provinceSelect.dispatchEvent(new Event('change'));
+                            
+                            setTimeout(() => {
+                                area.districts.forEach(district => {
+                                    const option = districtSelect.querySelector(`option[value="${district}"]`);
+                                    if (option) option.selected = true;
+                                });
+                            }, 100);
+                        }
+                    });
+                }, 100);
+                
+                // Check appropriate checkboxes
+                const dataTypes = item.dataTypes.split(' + ');
+                document.querySelectorAll('#datatype-checkboxes input[type="checkbox"]').forEach(cb => {
+                    cb.checked = dataTypes.includes(cb.value);
+                });
+                
+                document.getElementById('add-data-modal').classList.remove('hidden');
+                document.getElementById('add-data-modal').classList.add('flex');
+            }
+        }
+
+        function deleteData(id) {
+            if (confirm('คุณต้องการลบข้อมูลนี้หรือไม่?')) {
+                let data = JSON.parse(localStorage.getItem('gis-data') || '[]');
+                data = data.filter(d => d.id !== id);
+                localStorage.setItem('gis-data', JSON.stringify(data));
+                
+                if (currentProvinceFilter === 'ผลการค้นหา' && searchResults) {
+                    // Update search results
+                    searchResults = searchResults.filter(d => d.id !== id);
+                    displaySearchResults();
+                } else if (currentProvinceFilter) {
+                    showProvinceData(currentProvinceFilter);
+                }
+            }
+        }
+
+        // Options page functions
+        function showOptionsDetail(type) {
+            currentOptionType = type;
+            
+            const titles = {
+                'staff': 'จัดการเจ้าหน้าที่',
+                'agency': 'จัดการหน่วยงาน',
+                'province': 'จัดการจังหวัด',
+                'datatype': 'จัดการข้อมูลที่ได้รับ'
+            };
+            
+            document.getElementById('detail-title').textContent = titles[type];
+            document.getElementById('options-page').classList.add('hidden');
+            document.getElementById('options-detail-page').classList.remove('hidden');
+            
+            loadOptionsList();
+        }
+
+        function loadOptionsList() {
+            const container = document.getElementById('options-list');
+            
+            if (currentOptionType === 'staff') {
+                const staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
+                container.innerHTML = staff.map(s => `
+                    <div class="flex justify-between items-center py-3 border-b">
+                        <span>${s.name}</span>
+                        <div>
+                            <button onclick="editOption(${s.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2">
+                                แก้ไข
+                            </button>
+                            <button onclick="deleteOption(${s.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                ลบ
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } else if (currentOptionType === 'agency') {
+                const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+                container.innerHTML = agencies.map(a => `
+                    <div class="flex justify-between items-center py-3 border-b">
+                        <span>${a.name}</span>
+                        <div>
+                            <button onclick="editOption(${a.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2">
+                                แก้ไข
+                            </button>
+                            <button onclick="deleteOption(${a.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                ลบ
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } else if (currentOptionType === 'province') {
+                const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+                container.innerHTML = provinces.map(p => `
+                    <div class="border-b py-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold text-primary-blue">${p.name}</span>
+                            <div>
+                                <button onclick="editOption(${p.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2">
+                                    แก้ไข
+                                </button>
+                                <button onclick="deleteOption(${p.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                    ลบ
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ml-4 text-sm text-gray-600">
+                            อำเภอ: ${p.districts.map(d => d.name).join(', ')}
+                        </div>
+                    </div>
+                `).join('');
+            } else if (currentOptionType === 'datatype') {
+                const datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
+                container.innerHTML = datatypes.map(dt => `
+                    <div class="flex justify-between items-center py-3 border-b">
+                        <span>${dt.name}</span>
+                        <div>
+                            <button onclick="editOption(${dt.id})" class="bg-primary-yellow hover:bg-yellow-500 text-white px-3 py-1 rounded text-sm mr-2">
+                                แก้ไข
+                            </button>
+                            <button onclick="deleteOption(${dt.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                ลบ
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function showAddOptionModal() {
+            const titles = {
+                'staff': 'เพิ่มเจ้าหน้าที่',
+                'agency': 'เพิ่มหน่วยงาน',
+                'province': 'เพิ่มจังหวัด',
+                'datatype': 'เพิ่มข้อมูลที่ได้รับ'
+            };
+            
+            document.getElementById('option-modal-title').textContent = titles[currentOptionType];
+            
+            const fieldsContainer = document.getElementById('option-form-fields');
+            
+            if (currentOptionType === 'staff') {
+                fieldsContainer.innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อ-นามสกุล</label>
+                        <input type="text" id="staff-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            } else if (currentOptionType === 'agency') {
+                fieldsContainer.innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อหน่วยงาน</label>
+                        <input type="text" id="agency-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            } else if (currentOptionType === 'province') {
+                fieldsContainer.innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อจังหวัด</label>
+                        <input type="text" id="province-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (คั่นด้วยเครื่องหมาย ,)</label>
+                        <textarea id="districts-list" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" rows="3" placeholder="อำเภอเมือง, อำเภอบางกรวย, อำเภอปากเกร็ด" required></textarea>
+                    </div>
+                `;
+            } else if (currentOptionType === 'datatype') {
+                fieldsContainer.innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อข้อมูลที่ได้รับ</label>
+                        <input type="text" id="datatype-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('add-option-modal').classList.remove('hidden');
+            document.getElementById('add-option-modal').classList.add('flex');
+            editingId = null;
+        }
+
+        function editOption(id) {
+            editingId = id;
+            
+            if (currentOptionType === 'staff') {
+                const staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
+                const item = staff.find(s => s.id === id);
+                
+                document.getElementById('option-modal-title').textContent = 'แก้ไขเจ้าหน้าที่';
+                document.getElementById('option-form-fields').innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อ-นามสกุล</label>
+                        <input type="text" id="staff-name" value="${item.name}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            } else if (currentOptionType === 'agency') {
+                const agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+                const item = agencies.find(a => a.id === id);
+                
+                document.getElementById('option-modal-title').textContent = 'แก้ไขหน่วยงาน';
+                document.getElementById('option-form-fields').innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อหน่วยงาน</label>
+                        <input type="text" id="agency-name" value="${item.name}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            } else if (currentOptionType === 'province') {
+                const provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+                const item = provinces.find(p => p.id === id);
+                
+                document.getElementById('option-modal-title').textContent = 'แก้ไขจังหวัด';
+                document.getElementById('option-form-fields').innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อจังหวัด</label>
+                        <input type="text" id="province-name" value="${item.name}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">อำเภอ (คั่นด้วยเครื่องหมาย ,)</label>
+                        <textarea id="districts-list" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" rows="3" required>${item.districts.map(d => d.name).join(', ')}</textarea>
+                    </div>
+                `;
+            } else if (currentOptionType === 'datatype') {
+                const datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
+                const item = datatypes.find(dt => dt.id === id);
+                
+                document.getElementById('option-modal-title').textContent = 'แก้ไขข้อมูลที่ได้รับ';
+                document.getElementById('option-form-fields').innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อข้อมูลที่ได้รับ</label>
+                        <input type="text" id="datatype-name" value="${item.name}" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-blue" required>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('add-option-modal').classList.remove('hidden');
+            document.getElementById('add-option-modal').classList.add('flex');
+        }
+
+        function deleteOption(id) {
+            if (confirm('คุณต้องการลบข้อมูลนี้หรือไม่?')) {
+                if (currentOptionType === 'staff') {
+                    let staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
+                    staff = staff.filter(s => s.id !== id);
+                    localStorage.setItem('gis-staff', JSON.stringify(staff));
+                } else if (currentOptionType === 'agency') {
+                    let agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+                    agencies = agencies.filter(a => a.id !== id);
+                    localStorage.setItem('gis-agencies', JSON.stringify(agencies));
+                } else if (currentOptionType === 'province') {
+                    let provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+                    provinces = provinces.filter(p => p.id !== id);
+                    localStorage.setItem('gis-provinces', JSON.stringify(provinces));
+                } else if (currentOptionType === 'datatype') {
+                    let datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
+                    datatypes = datatypes.filter(dt => dt.id !== id);
+                    localStorage.setItem('gis-datatypes', JSON.stringify(datatypes));
+                }
+                
+                loadOptionsList();
+                
+                if (currentOptionType === 'province') {
+                    loadProvinceButtons();
+                }
+            }
+        }
+
+        // Form submission handlers
+        document.getElementById('data-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const staff = document.getElementById('staff-select').value;
+            const date = document.getElementById('date-input').value;
+            const agency = document.getElementById('agency-select').value;
+            const documentNumber = document.getElementById('document-number').value;
+            
+            // Get areas data
+            const areas = [];
+            const areaFields = document.querySelectorAll('.area-field');
+            
+            areaFields.forEach(field => {
+                const provinceSelect = field.querySelector('.province-select');
+                const districtSelect = field.querySelector('.district-select');
+                
+                if (provinceSelect.value) {
+                    const selectedDistricts = Array.from(districtSelect.selectedOptions).map(option => option.value).filter(v => v);
+                    if (selectedDistricts.length > 0) {
+                        areas.push({
+                            province: provinceSelect.value,
+                            districts: selectedDistricts
+                        });
+                    }
+                }
+            });
+            
+            // Get selected data types
+            const selectedDataTypes = [];
+            document.querySelectorAll('#datatype-checkboxes input[type="checkbox"]:checked').forEach(cb => {
+                selectedDataTypes.push(cb.value);
+            });
+            
+            // Add other data types
+            const otherDataTypes = document.getElementById('other-datatype').value;
+            if (otherDataTypes.trim()) {
+                const others = otherDataTypes.split(',').map(s => s.trim()).filter(s => s);
+                selectedDataTypes.push(...others);
+            }
+            
+            const dataTypes = selectedDataTypes.join(' + ');
+            
+            let data = JSON.parse(localStorage.getItem('gis-data') || '[]');
+            
+            if (editingId) {
+                // Update existing data
+                const index = data.findIndex(d => d.id === editingId);
+                if (index !== -1) {
+                    data[index] = {
+                        ...data[index],
+                        staff,
+                        date,
+                        agency,
+                        documentNumber,
+                        areas,
+                        dataTypes
+                    };
+                }
+            } else {
+                // Add new data
+                const newId = Math.max(...data.map(d => d.id), 0) + 1;
+                data.push({
+                    id: newId,
+                    staff,
+                    date,
+                    agency,
+                    documentNumber,
+                    areas,
+                    dataTypes
+                });
+            }
+            
+            localStorage.setItem('gis-data', JSON.stringify(data));
+            closeModal('add-data-modal');
+            
+            if (currentProvinceFilter) {
+                showProvinceData(currentProvinceFilter);
+            }
+        });
+
+        document.getElementById('option-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (currentOptionType === 'staff') {
+                const name = document.getElementById('staff-name').value;
+                let staff = JSON.parse(localStorage.getItem('gis-staff') || '[]');
+                
+                if (editingId) {
+                    const index = staff.findIndex(s => s.id === editingId);
+                    if (index !== -1) {
+                        staff[index].name = name;
+                    }
+                } else {
+                    const newId = Math.max(...staff.map(s => s.id), 0) + 1;
+                    staff.push({ id: newId, name });
+                }
+                
+                localStorage.setItem('gis-staff', JSON.stringify(staff));
+            } else if (currentOptionType === 'agency') {
+                const name = document.getElementById('agency-name').value;
+                let agencies = JSON.parse(localStorage.getItem('gis-agencies') || '[]');
+                
+                if (editingId) {
+                    const index = agencies.findIndex(a => a.id === editingId);
+                    if (index !== -1) {
+                        agencies[index].name = name;
+                    }
+                } else {
+                    const newId = Math.max(...agencies.map(a => a.id), 0) + 1;
+                    agencies.push({ id: newId, name });
+                }
+                
+                localStorage.setItem('gis-agencies', JSON.stringify(agencies));
+            } else if (currentOptionType === 'province') {
+                const name = document.getElementById('province-name').value;
+                const districtsList = document.getElementById('districts-list').value;
+                const districts = districtsList.split(',').map((d, index) => ({
+                    id: Date.now() + index,
+                    name: d.trim()
+                })).filter(d => d.name);
+                
+                let provinces = JSON.parse(localStorage.getItem('gis-provinces') || '[]');
+                
+                if (editingId) {
+                    const index = provinces.findIndex(p => p.id === editingId);
+                    if (index !== -1) {
+                        provinces[index].name = name;
+                        provinces[index].districts = districts;
+                    }
+                } else {
+                    const newId = Math.max(...provinces.map(p => p.id), 0) + 1;
+                    provinces.push({ id: newId, name, districts });
+                }
+                
+                localStorage.setItem('gis-provinces', JSON.stringify(provinces));
+                loadProvinceButtons();
+            } else if (currentOptionType === 'datatype') {
+                const name = document.getElementById('datatype-name').value;
+                let datatypes = JSON.parse(localStorage.getItem('gis-datatypes') || '[]');
+                
+                if (editingId) {
+                    const index = datatypes.findIndex(dt => dt.id === editingId);
+                    if (index !== -1) {
+                        datatypes[index].name = name;
+                    }
+                } else {
+                    const newId = Math.max(...datatypes.map(dt => dt.id), 0) + 1;
+                    datatypes.push({ id: newId, name });
+                }
+                
+                localStorage.setItem('gis-datatypes', JSON.stringify(datatypes));
+            }
+            
+            closeModal('add-option-modal');
+            loadOptionsList();
+        });
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeData();
+            showPage('database');
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97a65d3fc37599a9',t:'MTc1NzA4MTk5NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
